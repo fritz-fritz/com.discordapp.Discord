@@ -113,10 +113,11 @@ modules:
       #       [AVError] AV error reported: noise-canceller-error {"underlyingError":"NoiseCancellerError.KRISP_INIT_ERROR_GLOBAL_INIT"}
       - mkdir -p /app/discord/modules/discord_krisp/KMS/logs
       # HACK: Set the newUpdater key to false in build_info.json in order to disable the new Discord updater (released on 2026-05-04, version 1.0.136),
-      #       Also add a localModulesRoot key that points to the Discord modules we're packaging.
+      #       Also add a localModulesRoot key that points to a writable per-app modules directory prepared by discord.sh
+      #       (MediaPipe opens discord_voice .tflite models with O_RDWR; /app is read-only — see issue #650).
       - |
         set -e
-        jq '.newUpdater = false | .localModulesRoot = "/app/discord/modules"' /app/discord/resources/build_info.json > tmp.json
+        jq '.newUpdater = false | .localModulesRoot = "/var/data/discord/modules"' /app/discord/resources/build_info.json > tmp.json
         mv tmp.json /app/discord/resources/build_info.json
       # HACK: Patch Discord's app.asar to fix the desktop filename to avoid window association issues, as recommended by the Flatpak documentation:
       #       https://docs.flatpak.org/en/latest/electron.html#using-correct-desktop-file-name

@@ -113,12 +113,27 @@ modules:
       #       [AVError] AV error reported: noise-canceller-error {"underlyingError":"NoiseCancellerError.KRISP_INIT_ERROR_GLOBAL_INIT"}
       - mkdir -p /app/discord/modules/discord_krisp/KMS/logs
       # HACK: Set the newUpdater key to false in build_info.json in order to disable the new Discord updater (released on 2026-05-04, version 1.0.136),
-      #       Also add a localModulesRoot key that points to a writable per-app modules directory prepared by discord.sh
-      #       (MediaPipe opens discord_voice .tflite models with O_RDWR; /app is read-only — see issue #650).
+      #       Also add a localModulesRoot key that points to the Discord modules we're packaging.
       - |
         set -e
-        jq '.newUpdater = false | .localModulesRoot = "/var/data/discord/modules"' /app/discord/resources/build_info.json > tmp.json
+        jq '.newUpdater = false | .localModulesRoot = "/app/discord/modules"' /app/discord/resources/build_info.json > tmp.json
         mv tmp.json /app/discord/resources/build_info.json
+      # HACK: MediaPipe (video backgrounds / selfie segmentation) opens the discord_voice *.tflite
+      #       models with O_RDWR. /app is mounted read-only, so the open fails with EACCES and the
+      #       camera goes black (see https://github.com/flathub/com.discordapp.Discord/issues/650).
+      #       Keep the real models in a read-only stash and replace them in the module directory with
+      #       symlinks to a writable per-app path that discord.sh populates at launch. Only the two
+      #       model files (~500 KB) need to be writable; everything else stays in read-only /app.
+      - |
+        set -eu
+        voice=/app/discord/modules/discord_voice
+        store=/app/discord/discord_voice_models
+        writable=/var/data/discord/discord_voice_models
+        mkdir -p "${store}"
+        for model in selfie_segmentation.tflite selfie_segmentation_landscape.tflite; do
+          mv "${voice}/${model}" "${store}/${model}"
+          ln -s "${writable}/${model}" "${voice}/${model}"
+        done
       # HACK: Patch Discord's app.asar to fix the desktop filename to avoid window association issues, as recommended by the Flatpak documentation:
       #       https://docs.flatpak.org/en/latest/electron.html#using-correct-desktop-file-name
       - patch-electron-desktop-filename /app/discord/resources/app.asar

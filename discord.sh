@@ -35,58 +35,52 @@ fi
 # Disable auto-updates for Discord and its modules.
 disable-breaking-updates.py
 
-# MediaPipe selfie segmentation resolves model paths via
-# dladdr(realpath(discord_voice.node)) + basename, then opens sibling
-# .tflite files with O_RDWR. Flatpak mounts /app read-only, so opens of
-# /app/discord/modules/discord_voice/*.tflite fail with EACCES and camera
-# backgrounds go black. Point localModulesRoot at writable per-app data,
-# symlink other modules back to /app (they are opened O_RDONLY), and keep a
-# real writable copy of discord_voice so realpath() lands on a writable fs.
+# MediaPipe (video backgrounds / selfie segmentation) opens the discord_voice
+# *.tflite models with O_RDWR. /app is mounted read-only, so those opens fail
+# with EACCES and the camera goes black. At build time the two model files are
+# replaced with symlinks pointing at ${writable} below; stage writable copies
+# there so the O_RDWR opens succeed. Only refresh when the deployed app changes
+# (keyed on the Flatpak commit, which changes on every update).
 # See: https://github.com/flathub/com.discordapp.Discord/issues/650
-src_modules=/app/discord/modules
-dst_modules=/var/data/discord/modules
-mkdir -p "${dst_modules}"
+(
+    set -eu
+    store=/app/discord/discord_voice_models
+    writable=/var/data/discord/discord_voice_models
+    stamp_file="${writable}/.stamp"
 
-for module_path in "${src_modules}"/*; do
-    [ -d "${module_path}" ] || continue
-    module=$(basename "${module_path}")
-    [ "${module}" = "discord_voice" ] && continue
-
-    target="${dst_modules}/${module}"
-    if [ -e "${target}" ] || [ -L "${target}" ]; then
-        if [ ! -L "${target}" ] || [ "$(readlink "${target}")" != "${module_path}" ]; then
-            rm -rf "${target}"
-        fi
+    # Nothing to do if the read-only stash is absent (e.g. future repackaging).
+    if [ ! -d "${store}" ]; then
+        exit 0
     fi
-    ln -sfn "${module_path}" "${target}"
-done
 
-voice_src="${src_modules}/discord_voice"
-voice_dst="${dst_modules}/discord_voice"
-stamp_file="${dst_modules}/.discord_voice.stamp"
-# Hash the packaged app version metadata plus discord_voice module manifests.
-# Avoid jq here: it is used at build time but not guaranteed in the runtime.
-expected_stamp="$(
-    {
-        cat /app/discord/resources/build_info.json
-        cksum "${voice_src}/manifest.json" "${voice_src}/package.json"
-    } | sha256sum | awk '{print $1}'
-)"
-current_stamp=""
-if [ -f "${stamp_file}" ]; then
-    current_stamp=$(cat "${stamp_file}")
-fi
-
-if [ ! -d "${voice_dst}" ] || [ -L "${voice_dst}" ] || [ "${current_stamp}" != "${expected_stamp}" ]; then
-    tmp=$(mktemp -d "${dst_modules}/.discord_voice.XXXXXX")
-    if cp -a "${voice_src}/." "${tmp}/" && chmod -R u+rw "${tmp}"; then
-        rm -rf "${voice_dst}"
-        mv "${tmp}" "${voice_dst}"
-        printf '%s\n' "${expected_stamp}" > "${stamp_file}"
-    else
-        rm -rf "${tmp}"
+    expected_stamp="$(awk -F= '/^app-commit=/{print $2; exit}' /.flatpak-info 2>/dev/null || true)"
+    if [ -z "${expected_stamp}" ]; then
+        expected_stamp="$(cksum "${store}"/*.tflite | sha256sum | cut -d' ' -f1)"
     fi
-fi
+
+    current_stamp=""
+    if [ -f "${stamp_file}" ]; then
+        current_stamp="$(cat "${stamp_file}")"
+    fi
+
+    if [ "${current_stamp}" = "${expected_stamp}" ] && [ -d "${writable}" ]; then
+        exit 0
+    fi
+
+    mkdir -p "${writable}"
+    # Remove any temp dirs left behind by a previously interrupted run.
+    rm -rf "${writable}"/.stage.* 2>/dev/null || true
+
+    tmp="$(mktemp -d "${writable}/.stage.XXXXXX")"
+    trap 'rm -rf "${tmp}"' EXIT
+    cp "${store}"/*.tflite "${tmp}/"
+    chmod u+rw "${tmp}"/*.tflite
+    # Publish each model atomically so a concurrent launch never sees a partial file.
+    for model in "${tmp}"/*.tflite; do
+        mv -f "${model}" "${writable}/$(basename "${model}")"
+    done
+    printf '%s\n' "${expected_stamp}" > "${stamp_file}"
+) || echo "discord.sh: warning: failed to stage MediaPipe models; video backgrounds may not work" >&2
 
 env TMPDIR="${XDG_CACHE_HOME}" zypak-wrapper /app/discord/Discord "${FLAGS[@]}" "$@"
 

@@ -237,6 +237,41 @@ modules:
           version-query: .modules.discord_zstd.full | "\(.host_version | map(tostring)
             | join("."))-\(.module_version)"
           url-query: .modules.discord_zstd.full.url
+      # Optional Linux modules Discord ships but Flatpak did not previously package.
+      # They are ELF x86_64 Node/Electron N-API addons for Discord's game-platform
+      # features (app install/patch, cloud saves, Game SDK helpers). Not in
+      # required_modules. Intentionally no finish-args changes: load inside the
+      # existing sandbox; host game installs may simply fail closed if attempted.
+      - type: file
+        dest-filename: discord_cloudsync_module.tar.br
+        url: https://stable.dl2.discordapp.net/distro/app/stable/linux/x64/1.0.147/discord_cloudsync/1/full.distro
+        sha256: 7cc5dc692fda3661e53093c59753bfccb5c51fbb994f1250d94202bdd1280f31
+        x-checker-data:
+          type: json
+          url: https://updates.discord.com/distributions/app/manifests/latest?channel=stable&platform=linux&arch=x64
+          version-query: .modules.discord_cloudsync.full | "\(.host_version | map(tostring)
+            | join("."))-\(.module_version)"
+          url-query: .modules.discord_cloudsync.full.url
+      - type: file
+        dest-filename: discord_dispatch_module.tar.br
+        url: https://stable.dl2.discordapp.net/distro/app/stable/linux/x64/1.0.147/discord_dispatch/1/full.distro
+        sha256: 8ab622415afb79408bfff7725b1d3fc39eb71c63b0db82c89df733e517fac161
+        x-checker-data:
+          type: json
+          url: https://updates.discord.com/distributions/app/manifests/latest?channel=stable&platform=linux&arch=x64
+          version-query: .modules.discord_dispatch.full | "\(.host_version | map(tostring)
+            | join("."))-\(.module_version)"
+          url-query: .modules.discord_dispatch.full.url
+      - type: file
+        dest-filename: discord_modules_module.tar.br
+        url: https://stable.dl2.discordapp.net/distro/app/stable/linux/x64/1.0.147/discord_modules/1/full.distro
+        sha256: ab56924d203f02e79d887b6e100b1c594438f56d31358eb7ebe0a7c735fa2c58
+        x-checker-data:
+          type: json
+          url: https://updates.discord.com/distributions/app/manifests/latest?channel=stable&platform=linux&arch=x64
+          version-query: .modules.discord_modules.full | "\(.host_version | map(tostring)
+            | join("."))-\(.module_version)"
+          url-query: .modules.discord_modules.full.url
       - type: file
         path: discord.sh
       - type: file

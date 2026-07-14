@@ -129,13 +129,14 @@ modules:
         set -eu
         voice=/app/discord/modules/discord_voice
         store=/app/discord/mediapipe_models
+        # /var/data is Flatpak's alias for $XDG_DATA_HOME; keep an absolute path in the symlink.
         writable=/var/data/mediapipe_models
-        mkdir -p "${store}"
         for model in "${voice}"/*.tflite; do
           [ -f "${model}" ] || continue
           name=$(basename "${model}")
-          mv "${model}" "${store}/${name}"
-          ln -s "${writable}/${name}" "${voice}/${name}"
+          mkdir -p "${store}"
+          mv -f "${model}" "${store}/${name}"
+          ln -sfn "${writable}/${name}" "${voice}/${name}"
         done
       # HACK: Patch Discord's app.asar to fix the desktop filename to avoid window association issues, as recommended by the Flatpak documentation:
       #       https://docs.flatpak.org/en/latest/electron.html#using-correct-desktop-file-name

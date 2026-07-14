@@ -35,6 +35,16 @@ fi
 # Disable auto-updates for Discord and its modules.
 disable-breaking-updates.py
 
+# Seed writable copies of MediaPipe *.tflite models (symlinked from /app at build;
+# see com.discordapp.Discord.yaml). ~500 KB; cheap enough to refresh every launch.
+# See: https://github.com/flathub/com.discordapp.Discord/issues/650
+if [ -d /app/discord/mediapipe_models ]
+then
+    mkdir -p /var/data/mediapipe_models
+    cp -f /app/discord/mediapipe_models/*.tflite /var/data/mediapipe_models/
+    chmod u+rw /var/data/mediapipe_models/*.tflite
+fi
+
 env TMPDIR="${XDG_CACHE_HOME}" zypak-wrapper /app/discord/Discord "${FLAGS[@]}" "$@"
 
 if [ "${invoke_socat}" = true ]

@@ -131,10 +131,9 @@ modules:
         store=/app/discord/mediapipe_models
         # /var/data is Flatpak's alias for $XDG_DATA_HOME; keep an absolute path in the symlink.
         writable=/var/data/mediapipe_models
+        mkdir -p "${store}"
         for model in "${voice}"/*.tflite; do
-          [ -f "${model}" ] || continue
-          name=$(basename "${model}")
-          mkdir -p "${store}"
+          name=${model##*/}
           mv -f "${model}" "${store}/${name}"
           ln -sfn "${writable}/${name}" "${voice}/${name}"
         done

@@ -1,0 +1,29 @@
+# Temporary validation workflow for a fork build of this Flatpak.
+# Not intended to be merged upstream into flathub/com.discordapp.Discord.
+name: Build Flatpak
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  flatpak:
+    name: Build
+    runs-on: ubuntu-latest
+    container:
+      # Tag may need adjusting to match an available flathub-infra image.
+      # flatpak-builder will install the needed runtime/SDK/BaseApp from Flathub if not present.
+      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-25.08
+      options: --privileged
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Flatpak
+        uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          bundle: com.discordapp.Discord.flatpak
+          manifest-path: com.discordapp.Discord.yaml
+          cache-key: flatpak-builder-${{ github.sha }}
+          upload-artifact: true

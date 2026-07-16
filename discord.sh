@@ -36,21 +36,22 @@ fi
 disable-breaking-updates.py
 
 # Seed writable copies of MediaPipe *.tflite models (symlinked from /app at build;
-# see com.discordapp.Discord.yaml). ~500 KB; cheap enough to refresh every launch.
+# see com.discordapp.Discord.yaml).
 # Destination matches the build-time symlink target (/var/data == $XDG_DATA_HOME here).
 # See: https://github.com/flathub/com.discordapp.Discord/issues/650
 mediapipe_store=/app/discord/mediapipe_models
 mediapipe_models="${XDG_DATA_HOME:-/var/data}/mediapipe_models"
-if [ -d "${mediapipe_store}" ]
+if [ ! -d "${mediapipe_models}" ]
 then
-    for model in "${mediapipe_store}"/*.tflite
-    do
-        [ -f "${model}" ] || continue
-        mkdir -p "${mediapipe_models}"
-        cp -f "${model}" "${mediapipe_models}/"
-        chmod u+rw "${mediapipe_models}/$(basename "${model}")"
-    done
+    mkdir -p "${mediapipe_models}"
 fi
+for model in "${mediapipe_store}"/*.tflite
+do
+    if ! cmp -s "${model}" "${mediapipe_models}/${model##*/}"
+    then
+        cp "${model}" "${mediapipe_models}"
+    fi
+done
 
 env TMPDIR="${XDG_CACHE_HOME}" zypak-wrapper /app/discord/Discord "${FLAGS[@]}" "$@"
 
